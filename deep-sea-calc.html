@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Deep Sea Calc</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --cyan:   #00fff7;
+    --pink:   #ff2d78;
+    --green:  #39ff14;
+    --yellow: #ffe600;
+    --purple: #bf5fff;
+    --orange: #ff8c00;
+    --glow:   #00fff7;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg,#000510 0%,#000c1a 40%,#001020 70%,#000d18 100%);
+    font-family: 'Orbitron', monospace;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Light rays ── */
+  .rays { position:fixed; inset:0; pointer-events:none; z-index:0; }
+  .ray {
+    position: absolute; top:0; width:3px; height:100vh;
+    transform-origin: top center;
+    animation: rayPulse 3s ease-in-out infinite;
+  }
+
+  /* ── Fish ── */
+  .fish {
+    position: fixed; font-size:28px; pointer-events:none; z-index:1;
+    animation: swimL 14s linear infinite;
+  }
+  .fish.right { animation: swimR 20s linear infinite; }
+
+  /* ── Seabed ── */
+  .seabed {
+    position: fixed; bottom:0; left:0; right:0; height:90px;
+    background: linear-gradient(180deg,transparent,#001a0a55 50%,#002a1088);
+    pointer-events:none; z-index:2;
+  }
+  .weed {
+    position:absolute; bottom:0;
+    font-size:22px;
+    transform-origin: bottom center;
+    animation: sway 2s ease-in-out infinite;
+  }
+  .shell { position:absolute; bottom:4px; font-size:15px; }
+
+  /* ── Calculator ── */
+  .calc-wrap {
+    position:relative; z-index:10; width:330px;
+    background: linear-gradient(160deg,#030f1a,#010810);
+    border-radius:32px;
+    border: 2px solid #00fff755;
+    box-shadow:
+      0 0 30px #00fff744,
+      0 0 60px #00fff722,
+      0 0 120px #00fff711,
+      inset 0 0 30px #00000088,
+      0 30px 60px rgba(0,0,0,0.9);
+    padding: 0 0 18px;
+    overflow: hidden;
+    animation: calcIn 0.6s cubic-bezier(0.16,1,0.3,1);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  /* scanline */
+  .scanline-wrap { position:absolute; inset:0; pointer-events:none; z-index:20; overflow:hidden; }
+  .scanline {
+    width:100%; height:40%;
+    background: linear-gradient(180deg,transparent,rgba(0,255,255,0.03),transparent);
+    animation: scanline 4s linear infinite;
+  }
+
+  /* bubbles container */
+  .bubbles { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+  .bubble {
+    position:absolute; bottom:-20px; border-radius:50%;
+    animation: bubble 4s ease-in infinite;
+  }
+
+  /* header */
+  .calc-header {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding: 18px 20px 10px;
+    position:relative; z-index:5;
+  }
+  .calc-header .icon { font-size:20px; }
+  .calc-title {
+    font-size:0.7rem; font-weight:900; letter-spacing:0.25em;
+    color: var(--cyan);
+    text-shadow: 0 0 10px var(--cyan), 0 0 20px #00fff788;
+    animation: neonFlicker 6s infinite;
+  }
+
+  /* display */
+  .display {
+    margin: 0 14px 12px;
+    background: #000d18;
+    border-radius:20px;
+    border: 1.5px solid #00fff755;
+    box-shadow: 0 0 15px #00fff733, inset 0 0 20px #00000088;
+    padding: 12px 18px 14px;
+    min-height:108px;
+    display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end;
+    position:relative; z-index:5; overflow:hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .display-bubbles { position:absolute; inset:0; pointer-events:none; }
+  .d-bubble {
+    position:absolute; bottom:0; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#00fff766,transparent);
+    border:1px solid #00fff744;
+    animation: bubble 3s ease-in infinite;
+  }
+  .expr {
+    font-size:0.7rem; color:#00fff799; letter-spacing:0.08em;
+    min-height:20px; text-align:right; width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    text-shadow: 0 0 8px #00fff766;
+    transition:color 0.3s;
+  }
+  .number {
+    font-size:2.8rem; font-weight:900;
+    color: var(--cyan);
+    text-shadow: 0 0 15px var(--cyan), 0 0 30px #00fff788;
+    letter-spacing:-0.02em;
+    text-align:right; width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    line-height:1.1;
+    transition: font-size 0.12s, color 0.3s, text-shadow 0.3s;
+  }
+
+  /* buttons grid */
+  .btn-grid {
+    display:grid; grid-template-columns:repeat(4,1fr);
+    gap:8px; padding:4px 14px 0;
+    position:relative; z-index:5;
+  }
+  .btn {
+    height:66px; border-radius:18px;
+    font-family:'Orbitron',monospace; font-weight:700; font-size:1.25rem;
+    border:2px solid; cursor:pointer; outline:none;
+    display:flex; align-items:center; justify-content:center;
+    transition: transform 0.08s, box-shadow 0.1s, filter 0.15s;
+    user-select:none;
+    letter-spacing:0.02em;
+  }
+  .btn:hover { filter:brightness(1.2) saturate(1.3); }
+  .btn:active, .btn.pressed {
+    transform: translateY(3px) scale(0.96) !important;
+    box-shadow: 0 0 6px currentColor !important;
+  }
+
+  /* button types */
+  .btn-num {
+    background:#0d0020; color:var(--purple);
+    border-color:#bf5fff99;
+    box-shadow: 0 0 12px #bf5fff55, 0 0 24px #bf5fff22, inset 0 0 10px #bf5fff11, 0 4px 0 #bf5fff44;
+    text-shadow: 0 0 10px var(--purple), 0 0 20px #bf5fff88;
+  }
+  .btn-fn {
+    background:#001a22; color:var(--cyan);
+    border-color:var(--cyan);
+    box-shadow: 0 0 12px #00fff755, 0 0 24px #00fff722, inset 0 0 10px #00fff711, 0 4px 0 #00fff744;
+    text-shadow: 0 0 10px var(--cyan), 0 0 20px #00fff788;
+    font-size:0.88rem;
+  }
+  .btn-op {
+    background:#1a0800; color:var(--orange);
+    border-color:var(--orange);
+    box-shadow: 0 0 12px #ff8c0055, 0 0 24px #ff8c0022, inset 0 0 10px #ff8c0011, 0 4px 0 #ff8c0044;
+    text-shadow: 0 0 10px var(--orange), 0 0 20px #ff8c0088;
+    font-size:1.55rem;
+  }
+  .btn-op.active {
+    background:#ff8c0033; color:#fff;
+    box-shadow: 0 0 20px #ff8c00aa, 0 4px 0 #ff8c0044;
+  }
+  .btn-eq {
+    background:#001200; color:var(--green);
+    border-color:var(--green);
+    box-shadow: 0 0 12px #39ff1455, 0 0 24px #39ff1422, inset 0 0 10px #39ff1411, 0 4px 0 #39ff1444;
+    text-shadow: 0 0 10px var(--green), 0 0 20px #39ff1488;
+    font-size:1.55rem;
+  }
+  .btn-wide { grid-column: span 2; justify-content:flex-start; padding-left:26px; }
+
+  /* footer */
+  .calc-footer {
+    text-align:center; padding:14px 0 2px;
+    font-size:18px; letter-spacing:8px;
+    position:relative; z-index:5;
+    filter: drop-shadow(0 0 6px var(--cyan));
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  /* ── Keyframes ── */
+  @keyframes bubble {
+    0%   { transform:translateY(0) scale(0.6); opacity:0; }
+    15%  { opacity:0.9; }
+    85%  { opacity:0.5; }
+    100% { transform:translateY(-420px) scale(1.1) translateX(15px); opacity:0; }
+  }
+  @keyframes swimL {
+    0%  { left:-80px;  transform:scaleX(1); }
+    49% { left:110vw;  transform:scaleX(1); }
+    50% { left:110vw;  transform:scaleX(-1); }
+    99% { left:-80px;  transform:scaleX(-1); }
+    100%{ left:-80px;  transform:scaleX(1); }
+  }
+  @keyframes swimR {
+    0%  { right:-80px; transform:scaleX(-1); }
+    49% { right:110vw; transform:scaleX(-1); }
+    50% { right:110vw; transform:scaleX(1); }
+    99% { right:-80px; transform:scaleX(1); }
+    100%{ right:-80px; transform:scaleX(-1); }
+  }
+  @keyframes sway {
+    0%,100% { transform:rotate(-6deg) scaleY(1); }
+    50%     { transform:rotate(6deg) scaleY(1.04); }
+  }
+  @keyframes pulse {
+    0%,100% { opacity:0.7; }
+    50%     { opacity:1; }
+  }
+  @keyframes scanline {
+    0%   { transform:translateY(-100%); }
+    100% { transform:translateY(200%); }
+  }
+  @keyframes calcIn {
+    from { opacity:0; transform:translateY(40px) scale(0.9); }
+    to   { opacity:1; transform:translateY(0) scale(1); }
+  }
+  @keyframes neonFlicker {
+    0%,19%,21%,23%,25%,54%,56%,100% { opacity:1; }
+    20%,24%,55% { opacity:0.4; }
+  }
+  @keyframes rayPulse {
+    0%,100% { opacity:0.06; }
+    50%     { opacity:0.16; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Light rays -->
+<div class="rays">
+  <div class="ray" style="left:8%;  background:linear-gradient(180deg,#00fff744,transparent); transform:rotate(-3deg); animation-delay:0s;"></div>
+  <div class="ray" style="left:22%; background:linear-gradient(180deg,#ff2d7844,transparent); transform:rotate(-1deg); animation-delay:0.4s;"></div>
+  <div class="ray" style="left:38%; background:linear-gradient(180deg,#bf5fff44,transparent); transform:rotate(1deg);  animation-delay:0.8s;"></div>
+  <div class="ray" style="left:55%; background:linear-gradient(180deg,#39ff1444,transparent); transform:rotate(2deg);  animation-delay:1.2s;"></div>
+  <div class="ray" style="left:68%; background:linear-gradient(180deg,#ffe60044,transparent); transform:rotate(3deg);  animation-delay:1.6s;"></div>
+  <div class="ray" style="left:82%; background:linear-gradient(180deg,#ff8c0044,transparent); transform:rotate(4deg);  animation-delay:2.0s;"></div>
+</div>
+
+<!-- Fish -->
+<div class="fish" style="top:12%; filter:drop-shadow(0 0 8px #00fff7); animation-duration:14s; animation-delay:0s;">🐠</div>
+<div class="fish right" style="top:30%; filter:drop-shadow(0 0 8px #ff2d78); animation-duration:20s; animation-delay:4s;">🐡</div>
+<div class="fish" style="top:55%; filter:drop-shadow(0 0 8px #bf5fff); animation-duration:17s; animation-delay:2s;">🐟</div>
+<div class="fish right" style="top:75%; filter:drop-shadow(0 0 8px #ff8c00); animation-duration:25s; animation-delay:7s;">🦈</div>
+<div class="fish" style="top:88%; filter:drop-shadow(0 0 8px #39ff14); animation-duration:18s; animation-delay:1s;">🐙</div>
+
+<!-- Seabed -->
+<div class="seabed">
+  <div class="weed" style="left:7%;  font-size:22px; filter:drop-shadow(0 0 6px #39ff14); animation-delay:0s;">🌿</div>
+  <div class="weed" style="left:18%; font-size:20px; filter:drop-shadow(0 0 6px #00fff7); animation-delay:0.3s;">🪸</div>
+  <div class="weed" style="left:30%; font-size:24px; filter:drop-shadow(0 0 6px #ff2d78); animation-delay:0.6s;">🌿</div>
+  <div class="weed" style="left:44%; font-size:20px; filter:drop-shadow(0 0 6px #bf5fff); animation-delay:0.9s;">🪸</div>
+  <div class="weed" style="left:57%; font-size:26px; filter:drop-shadow(0 0 6px #39ff14); animation-delay:1.2s;">🌿</div>
+  <div class="weed" style="left:68%; font-size:22px; filter:drop-shadow(0 0 6px #00fff7); animation-delay:1.5s;">🌿</div>
+  <div class="weed" style="left:80%; font-size:20px; filter:drop-shadow(0 0 6px #ffe600); animation-delay:1.8s;">🪸</div>
+  <div class="weed" style="left:91%; font-size:18px; filter:drop-shadow(0 0 6px #ff2d78); animation-delay:0.4s;">🌿</div>
+  <div class="shell" style="left:12%; filter:drop-shadow(0 0 5px #ffe600);">🐚</div>
+  <div class="shell" style="left:35%; filter:drop-shadow(0 0 5px #00fff7);">🐚</div>
+  <div class="shell" style="left:60%; filter:drop-shadow(0 0 5px #ff2d78);">🐚</div>
+  <div class="shell" style="left:85%; filter:drop-shadow(0 0 5px #bf5fff);">🐚</div>
+</div>
+
+<!-- Calculator -->
+<div class="calc-wrap" id="calc">
+  <!-- Scanline -->
+  <div class="scanline-wrap"><div class="scanline"></div></div>
+
+  <!-- Bubbles -->
+  <div class="bubbles" id="bubbles"></div>
+
+  <!-- Header -->
+  <div class="calc-header">
+    <span class="icon" style="filter:drop-shadow(0 0 8px #00fff7);">🐠</span>
+    <span class="calc-title">DEEP SEA CALC</span>
+    <span class="icon" style="filter:drop-shadow(0 0 8px #ff2d78);">🐡</span>
+  </div>
+
+  <!-- Display -->
+  <div class="display" id="display">
+    <div class="display-bubbles" id="displayBubbles"></div>
+    <div class="expr" id="expr">🌊 ready...</div>
+    <div class="number" id="number">0</div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-grid">
+    <button class="btn btn-fn"            data-val="AC">AC</button>
+    <button class="btn btn-fn"            data-val="+/-">+/-</button>
+    <button class="btn btn-fn"            data-val="%">%</button>
+    <button class="btn btn-op"            data-val="÷">÷</button>
+
+    <button class="btn btn-num"           data-val="7">7</button>
+    <button class="btn btn-num"           data-val="8">8</button>
+    <button class="btn btn-num"           data-val="9">9</button>
+    <button class="btn btn-op"            data-val="×">×</button>
+
+    <button class="btn btn-num"           data-val="4">4</button>
+    <button class="btn btn-num"           data-val="5">5</button>
+    <button class="btn btn-num"           data-val="6">6</button>
+    <button class="btn btn-op"            data-val="−">−</button>
+
+    <button class="btn btn-num"           data-val="1">1</button>
+    <button class="btn btn-num"           data-val="2">2</button>
+    <button class="btn btn-num"           data-val="3">3</button>
+    <button class="btn btn-op"            data-val="+">+</button>
+
+    <button class="btn btn-num btn-wide"  data-val="0">0</button>
+    <button class="btn btn-num"           data-val=".">.</button>
+    <button class="btn btn-eq"            data-val="=">=</button>
+  </div>
+
+  <!-- Footer -->
+  <div class="calc-footer">🐠🫧🐚🫧🐡</div>
+</div>
+
+<script>
+  // ── STATE ──────────────────────────────────────────────────────────────────
+  let displayVal = "0";
+  let exprVal    = "";
+  let operand    = null;
+  let operator   = null;
+  let waitNext   = false;
+
+  const NEON = {
+    cyan:   "#00fff7",
+    pink:   "#ff2d78",
+    green:  "#39ff14",
+    yellow: "#ffe600",
+    purple: "#bf5fff",
+    orange: "#ff8c00",
+  };
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const numberEl  = document.getElementById("number");
+  const exprEl    = document.getElementById("expr");
+  const displayEl = document.getElementById("display");
+  const calcEl    = document.getElementById("calc");
+
+  // ── RENDER ─────────────────────────────────────────────────────────────────
+  function render() {
+    numberEl.textContent = displayVal;
+    exprEl.textContent   = exprVal || "🌊 ready...";
+
+    const len = displayVal.replace(/[^\d]/g,"").length;
+    numberEl.style.fontSize = len > 11 ? "1.6rem" : len > 8 ? "2.1rem" : "2.8rem";
+
+    const isError = displayVal === "Error";
+    numberEl.style.color      = isError ? NEON.pink : currentNeon;
+    numberEl.style.textShadow = isError
+      ? `0 0 15px ${NEON.pink}, 0 0 30px ${NEON.pink}88`
+      : `0 0 15px ${currentNeon}, 0 0 30px ${currentNeon}88`;
+
+    // update operator button highlights
+    document.querySelectorAll(".btn-op").forEach(b => {
+      b.classList.toggle("active", b.dataset.val === operator && waitNext);
+    });
+  }
+
+  // ── GLOW ───────────────────────────────────────────────────────────────────
+  let currentNeon = NEON.cyan;
+  function setGlow(color) {
+    currentNeon = color;
+    calcEl.style.borderColor  = color + "66";
+    calcEl.style.boxShadow    = `0 0 30px ${color}44, 0 0 60px ${color}22, 0 0 120px ${color}11, inset 0 0 30px #00000088, 0 30px 60px rgba(0,0,0,0.9)`;
+    displayEl.style.borderColor = color + "55";
+    displayEl.style.boxShadow   = `0 0 15px ${color}33, inset 0 0 20px #00000088`;
+    exprEl.style.color = color + "99";
+  }
+
+  // ── MATH ───────────────────────────────────────────────────────────────────
+  function evaluate(a, op, b) {
+    const x = parseFloat(a), y = parseFloat(b);
+    if (isNaN(x) || isNaN(y)) return "Error";
+    switch(op) {
+      case "+": return x + y;
+      case "−": return x - y;
+      case "×": return x * y;
+      case "÷": return y === 0 ? "Error" : x / y;
+      default:  return y;
+    }
+  }
+
+  function fmt(n) {
+    if (n === "Error") return "Error";
+    const v = parseFloat(n);
+    if (isNaN(v) || !isFinite(v)) return "Error";
+    const s = parseFloat(v.toPrecision(10)).toString();
+    return s.length > 13 ? parseFloat(v.toPrecision(7)).toString() : s;
+  }
+
+  // ── HANDLE BUTTON ──────────────────────────────────────────────────────────
+  function handleBtn(label) {
+    // Glow color
+    if (["+","−","×","÷"].includes(label)) setGlow(NEON.orange);
+    else if (label === "=")  setGlow(NEON.green);
+    else if (label === "AC") setGlow(NEON.pink);
+    else                     setGlow(NEON.cyan);
+
+    // ── AC ──
+    if (label === "AC") {
+      displayVal = "0"; exprVal = "";
+      operand = null; operator = null; waitNext = false;
+      render(); return;
+    }
+
+    // ── +/- ──
+    if (label === "+/-") {
+      if (displayVal !== "0")
+        displayVal = displayVal.startsWith("-") ? displayVal.slice(1) : "-" + displayVal;
+      render(); return;
+    }
+
+    // ── % ──
+    if (label === "%") {
+      displayVal = fmt(parseFloat(displayVal) / 100);
+      render(); return;
+    }
+
+    // ── Operator ──
+    if (["+","−","×","÷"].includes(label)) {
+      if (operator && !waitNext) {
+        // chain evaluation
+        const result = fmt(evaluate(operand, operator, displayVal));
+        displayVal = result;
+        exprVal    = result + " " + label;
+        operand    = result;
+      } else {
+        exprVal  = displayVal + " " + label;
+        operand  = displayVal;
+      }
+      operator = label;
+      waitNext = true;
+      render(); return;
+    }
+
+    // ── = ──
+    if (label === "=") {
+      if (!operator || operand === null) return;
+      const result = fmt(evaluate(operand, operator, displayVal));
+      exprVal    = operand + " " + operator + " " + displayVal + " =";
+      displayVal = result;
+      operand    = null;
+      operator   = null;
+      waitNext   = true;
+      render(); return;
+    }
+
+    // ── Decimal ──
+    if (label === ".") {
+      const base = waitNext ? "0" : displayVal;
+      if (!base.includes(".")) {
+        displayVal = base + ".";
+        waitNext   = false;
+      }
+      render(); return;
+    }
+
+    // ── Digit ──
+    if (waitNext) {
+      displayVal = label;
+      waitNext   = false;
+    } else {
+      displayVal = displayVal === "0" ? label
+                 : displayVal.length >= 12 ? displayVal
+                 : displayVal + label;
+    }
+    render();
+  }
+
+  // ── BUTTON CLICK ───────────────────────────────────────────────────────────
+  document.querySelectorAll(".btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.val;
+      btn.classList.add("pressed");
+      setTimeout(() => btn.classList.remove("pressed"), 130);
+      handleBtn(val);
+    });
+  });
+
+  // ── KEYBOARD ──────────────────────────────────────────────────────────────
+  const keyMap = {
+    "0":"0","1":"1","2":"2","3":"3","4":"4","5":"5",
+    "6":"6","7":"7","8":"8","9":"9",
+    ".":".", "+":"+", "-":"−", "*":"×", "/":"÷",
+    "Enter":"=", "Escape":"AC", "Backspace":"AC", "%":"%"
+  };
+  document.addEventListener("keydown", e => {
+    if (keyMap[e.key]) { e.preventDefault(); handleBtn(keyMap[e.key]); }
+  });
+
+  // ── BUBBLES ───────────────────────────────────────────────────────────────
+  const BUBBLE_DATA = [
+    {x:5,  size:"8px",  dur:3.8, delay:0,   color:NEON.cyan},
+    {x:15, size:"5px",  dur:2.9, delay:1.2, color:NEON.pink},
+    {x:28, size:"10px", dur:4.5, delay:0.4, color:NEON.purple},
+    {x:40, size:"6px",  dur:3.1, delay:2.0, color:NEON.cyan},
+    {x:52, size:"9px",  dur:5.0, delay:0.8, color:NEON.green},
+    {x:63, size:"5px",  dur:2.6, delay:3.1, color:NEON.yellow},
+    {x:75, size:"7px",  dur:3.7, delay:1.5, color:NEON.pink},
+    {x:85, size:"11px", dur:4.2, delay:0.2, color:NEON.cyan},
+    {x:92, size:"5px",  dur:2.4, delay:2.7, color:NEON.purple},
+  ];
+
+  const bubblesEl = document.getElementById("bubbles");
+  BUBBLE_DATA.forEach(b => {
+    const el = document.createElement("div");
+    el.className = "bubble";
+    el.style.cssText = `
+      left:${b.x}%; width:${b.size}; height:${b.size};
+      background:radial-gradient(circle at 35% 30%,${b.color}55,transparent 70%);
+      border:1.5px solid ${b.color}88;
+      box-shadow:0 0 8px ${b.color}66, inset 0 0 6px ${b.color}33;
+      animation-duration:${b.dur}s; animation-delay:${b.delay}s;
+    `;
+    bubblesEl.appendChild(el);
+  });
+
+  // display bubbles
+  const dBubbles = document.getElementById("displayBubbles");
+  [15,35,60,80].forEach((x,i) => {
+    const el = document.createElement("div");
+    el.className = "d-bubble";
+    const s = (4 + i*2) + "px";
+    el.style.cssText = `
+      left:${x}%; width:${s}; height:${s};
+      animation-duration:${2.5+i*0.7}s; animation-delay:${i*0.8}s;
+    `;
+    dBubbles.appendChild(el);
+  });
+
+  // initial render
+  render();
+</script>
+</body>
+</html>
